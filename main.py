@@ -1,10 +1,12 @@
-
 import sys
+import os
+import argparse
+import subprocess
 
-def generate_nginx_config(server_name):
+def generate_nginx_config(server_name: str, subdomain: bool = False, name_subdomain: str = None):
     return f"""server {{
     listen 80;
-    server_name {server_name}.com www.{server_name}.com;
+    {f"server_name {name_subdomain}.{server_name}.com;" if subdomain else f"server_name {server_name}.com www.{server_name}.com;"}
 
     # Rutas internas de Reflex que deben ir al backend
     location /_event/ {{
@@ -34,36 +36,62 @@ def generate_nginx_config(server_name):
         proxy_set_header Host $host;
         proxy_cache_bypass $http_upgrade;
     }}
-}}
-"""
+}}"""
 
-if len(sys.argv) < 2:
-    # print("Uso: python3 main.py <server_name>")
-    sys.exit(1)
+def main():
+    parser = argparse.ArgumentParser(description="Generar archivo de configuración Nginx para Reflex.")
+    parser.add_argument("--server", required=True, help="Nombre base del dominio (ej: myapp)")
+    parser.add_argument("--subdomain", action="store_true", help="Indica si se está usando subdominio")
+    parser.add_argument("--name_subdomain", help="Nombre del subdominio (ej: admin)")
 
-server_name = sys.argv[1]
-filename = f"/etc/nginx/sites-available/{server_name}"
+    args = parser.parse_args()
 
-config = generate_nginx_config(server_name)
+    server_name = args.server
+    subdomain = args.subdomain
+    name_subdomain = args.name_subdomain
 
-# Escribir con permisos (requiere sudo)
-with open(filename, "w") as f:
-    f.write(config)
+    if subdomain and not name_subdomain:
+        print("Error: Si usas --subdomain, debes especificar --name_subdomain")
+        sys.exit(1)
 
-print(f"Archivo generado: {filename}")
+    config = generate_nginx_config(server_name, subdomain, name_subdomain)
+    filename = f"/etc/nginx/sites-available/{server_name if not subdomain else name_subdomain + '.' + server_name}"
 
+    # Escribir archivo
+    with open(filename, "w") as f:
+        f.write(config)
+    print(f"✔️ Archivo generado: {filename}")
 
-# Usage example:
-# sudo python3 main.py myserver
+    # Crear symlink
+    symlink = f"/etc/nginx/sites-enabled/{os.path.basename(filename)}"
+    if not os.path.exists(symlink):
+        os.symlink(filename, symlink)
+        print(f"🔗 Symlink creado: {symlink}")
+    else:
+        print(f"🔁 Symlink ya existe: {symlink}")
 
-# This script generates an Nginx configuration file for a given server name.
-# The generated file is saved in /etc/nginx/sites-available/<server_name>
-# and should be linked to /etc/nginx/sites-enabled/<server_name> for it to take effect.
-# After running this script, you may need to run:
-# sudo ln -s /etc/nginx/sites-available/<server_name> /etc/nginx/sites-enabled/
-# sudo systemctl restart nginx
-# Ensure you have the necessary permissions to write to /etc/nginx/sites-available/
-# and to restart the Nginx service.
-# Note: This script assumes you have Python 3 installed and that you run it with appropriate permissions.
-# Ensure you have the necessary permissions to write to /etc/nginx/sites-available/
-# and to restart the Nginx service.
+    # Verificar y recargar Nginx
+    print("🔍 Verificando configuración de Nginx...")
+    result = subprocess.run(["nginx", "-t"], capture_output=True, text=True)
+    print(result.stdout)
+    if result.returncode == 0:
+        subprocess.run(["systemctl", "reload", "nginx"])
+        print("✅ Nginx recargado.")
+    else:
+        print("❌ Error en configuración. Nginx no recargado.")
+        print(result.stderr)
+
+if __name__ == "__main__":
+    main()
+# This script generates an Nginx configuration file for a Reflex application.
+# It supports both main domain and subdomain configurations.
+# It also creates a symlink in the sites-enabled directory and checks the Nginx configuration before reloading it.
+# Usage:
+# python main.py --server myapp --subdomain --name_subdomain admin
+# Ensure you run this script with appropriate permissions to write to /etc/nginx
+# and create symlinks in /etc/nginx/sites-enabled.
+# Make sure to have Nginx installed and running on your system.
+# Note: This script assumes you have the necessary permissions to write to /etc/nginx.
+# Ensure you run this script with appropriate permissions to write to /etc/nginx
+# and create symlinks in /etc/nginx/sites-enabled.
+# Make sure to have Nginx installed and running on your system.
