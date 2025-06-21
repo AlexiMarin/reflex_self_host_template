@@ -6,7 +6,7 @@ import subprocess
 def generate_nginx_config(server_name: str, subdomain: bool = False, name_subdomain: str = None):
     return f"""server {{
     listen 80;
-    {f"server_name {name_subdomain}.{server_name}.com;" if subdomain else f"server_name {server_name}.com www.{server_name}.com;"}
+    {f"server_name {name_subdomain}.{server_name};" if subdomain else f"server_name {server_name} www.{server_name};"}
 
     # Rutas internas de Reflex que deben ir al backend
     location /_event/ {{
@@ -86,7 +86,7 @@ def main():
 
     print("🔐 Ejecutando Certbot...")
     if subdomain:
-        domain = f"{name_subdomain}.{server_name}.com"
+        domain = f"{name_subdomain}.{server_name}"
         certbot_cmd = [
             "certbot", "certonly", "--nginx",
             "--non-interactive", "--agree-tos",
@@ -98,8 +98,8 @@ def main():
             "certbot", "certonly", "--nginx",
             "--non-interactive", "--agree-tos",
             "--email", email,
-            "-d", f"{server_name}.com",
-            "-d", f"www.{server_name}.com"
+            "-d", f"{server_name}",
+            "-d", f"www.{server_name}"
         ]
 
     subprocess.run(certbot_cmd)
