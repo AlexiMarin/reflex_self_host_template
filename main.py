@@ -88,14 +88,14 @@ def main():
     if subdomain:
         domain = f"{name_subdomain}.{server_name}"
         certbot_cmd = [
-            "certbot", "certonly", "--nginx",
+            "certbot", "--nginx",
             "--non-interactive", "--agree-tos",
             "--email", email,
             "-d", domain
         ]
     else:
         certbot_cmd = [
-            "certbot", "certonly", "--nginx",
+            "certbot", "--nginx",
             "--non-interactive", "--agree-tos",
             "--email", email,
             "-d", f"{server_name}",
